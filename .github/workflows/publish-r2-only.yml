@@ -58,14 +58,14 @@ jobs:
           R2_DOWNLOAD_BASE: ${{ secrets.R2_DOWNLOAD_BASE }}
           TALKY_LICENSE_SERVER_URL: ${{ secrets.TALKY_LICENSE_SERVER_URL }}
           TALKY_LICENSE_ADMIN_TOKEN: ${{ secrets.TALKY_LICENSE_ADMIN_TOKEN }}
-          TALKY_LICENSE_DEPLOY_TOKEN: ${{ secrets.TALKY_LICENSE_DEPLOY_TOKEN }}
-          RELEASE_DIR: ${{ runner.temp }}/talkytimes-release
+          TALKY_LICENSE_DEPLOY_TOKEN: ${{ secrets.TALKY_LICENSE_ADMIN_TOKEN }}
           RELEASE_VERSION: ${{ inputs.tag }}
           RELEASE_NOTES: TalkyTimes ${{ inputs.tag }} (published from PD-build)
           PUBLISH_PLATFORMS: all
         run: |
           set -euo pipefail
           RELEASE_DIR="${{ runner.temp }}/talkytimes-release"
+          ARTIFACTS_DIR="${{ github.workspace }}/artifacts"
           mkdir -p "$RELEASE_DIR"
           while IFS= read -r f; do
             [[ -f "$f" ]] || continue
@@ -75,7 +75,7 @@ jobs:
               *) continue ;;
             esac
             cp "$f" "$RELEASE_DIR/$base"
-          done < <(find artifacts -type f)
+          done < <(find "$ARTIFACTS_DIR" -type f)
           ls -la "$RELEASE_DIR"
           test "$(find "$RELEASE_DIR" -maxdepth 1 -type f | wc -l | tr -d ' ')" -gt 0
           export RELEASE_DIR
