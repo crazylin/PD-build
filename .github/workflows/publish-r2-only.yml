@@ -81,7 +81,7 @@ jobs:
             [[ -f "$f" ]] || continue
             base="$(basename "$f")"
             case "$base" in
-              TalkyTimes-*-win-x64.exe|TalkyTimes-*-win7-x64.exe|TalkyTimes-*-mac-*.dmg|TalkyTimes-*-linux-x64.AppImage) ;;
+              TalkyTimes-*-win-x64.exe|TalkyTimes-*-win7-x64.exe|TalkyTimes-*-mac-*.dmg|TalkyTimes-*-linux-x64.AppImage|TalkyTimes-*-app.zip) ;;
               *) continue ;;
             esac
             cp "$f" "$RELEASE_DIR/$base"

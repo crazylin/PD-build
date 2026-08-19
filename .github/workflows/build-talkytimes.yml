@@ -170,6 +170,9 @@ jobs:
       - name: Verify packaged Core and ASAR
         working-directory: talkytimes-src/desktop
         run: pnpm verify:packaged -- release
+      - name: Pack app update zip
+        working-directory: talkytimes-src/desktop
+        run: node scripts/pack-app-update.mjs --dir release
       - name: Generate checksums
         working-directory: talkytimes-src/desktop
         run: pnpm release:manifest -- release
@@ -179,6 +182,7 @@ jobs:
           name: talkytimes-windows-x64
           path: |
             talkytimes-src/desktop/release/TalkyTimes-*-win-x64.exe
+            talkytimes-src/desktop/release/TalkyTimes-*-win-x64-app.zip
             talkytimes-src/desktop/release/*SHA256SUMS.json
           if-no-files-found: error
 
@@ -238,6 +242,9 @@ jobs:
       - name: Verify packaged Core and ASAR
         working-directory: talkytimes-src/desktop-legacy
         run: pnpm verify:package
+      - name: Pack app update zip
+        working-directory: talkytimes-src/desktop
+        run: node scripts/pack-app-update.mjs --dir ../desktop-legacy/release --platform win7-x64
       - name: Generate checksums
         working-directory: talkytimes-src/desktop
         run: pnpm release:manifest -- ../desktop-legacy/release
@@ -247,6 +254,7 @@ jobs:
           name: talkytimes-windows-7
           path: |
             talkytimes-src/desktop-legacy/release/TalkyTimes-*-win7-x64.exe
+            talkytimes-src/desktop-legacy/release/TalkyTimes-*-win7-x64-app.zip
             talkytimes-src/desktop-legacy/release/*SHA256SUMS.json
           if-no-files-found: error
 
@@ -299,6 +307,9 @@ jobs:
       - name: Verify packaged Core and ASAR
         working-directory: talkytimes-src/desktop
         run: pnpm verify:packaged -- release
+      - name: Pack app update zip
+        working-directory: talkytimes-src/desktop
+        run: node scripts/pack-app-update.mjs --dir release
       - name: Generate checksums
         working-directory: talkytimes-src/desktop
         run: pnpm release:manifest -- release
@@ -308,6 +319,7 @@ jobs:
           name: talkytimes-macos
           path: |
             talkytimes-src/desktop/release/TalkyTimes-*-mac-*.dmg
+            talkytimes-src/desktop/release/TalkyTimes-*-mac-*-app.zip
             talkytimes-src/desktop/release/*SHA256SUMS.json
           if-no-files-found: error
 
@@ -360,6 +372,9 @@ jobs:
       - name: Verify packaged Core and ASAR
         working-directory: talkytimes-src/desktop
         run: pnpm verify:packaged -- release
+      - name: Pack app update zip
+        working-directory: talkytimes-src/desktop
+        run: node scripts/pack-app-update.mjs --dir release
       - name: Normalize Linux AppImage filename
         working-directory: talkytimes-src/desktop/release
         shell: bash
@@ -379,6 +394,7 @@ jobs:
           name: talkytimes-linux-x64
           path: |
             talkytimes-src/desktop/release/TalkyTimes-*-linux-x64.AppImage
+            talkytimes-src/desktop/release/TalkyTimes-*-linux-x64-app.zip
             talkytimes-src/desktop/release/*SHA256SUMS.json
           if-no-files-found: error
 
@@ -437,11 +453,11 @@ jobs:
             [[ -f "$f" ]] || continue
             base="$(basename "$f")"
             case "$base" in
-              TalkyTimes-*-win-x64.exe|TalkyTimes-*-win7-x64.exe|TalkyTimes-*-mac-*.dmg|TalkyTimes-*-linux-x64.AppImage|*SHA256SUMS.json) ;;
+              TalkyTimes-*-win-x64.exe|TalkyTimes-*-win7-x64.exe|TalkyTimes-*-mac-*.dmg|TalkyTimes-*-linux-x64.AppImage|TalkyTimes-*-app.zip) ;;
               *) continue ;;
             esac
             case "$base" in
-              *portable*|*.zip|*.tar.gz|*.blockmap) continue ;;
+              *portable*|*.tar.gz|*.blockmap|*runtime*) continue ;;
             esac
             cp "$f" "$RELEASE_DIR/$base"
           done < <(find artifacts -type f)
