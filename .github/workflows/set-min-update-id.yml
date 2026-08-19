@@ -1,0 +1,80 @@
+name: Set TalkyTimes min_update_id
+
+on:
+  workflow_dispatch:
+    inputs:
+      min_update_id:
+        description: Product min_update_id. Clients with a lower local update ID are offered the latest published package (not forced unless the release itself is mandatory).
+        required: true
+        type: string
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  set:
+    name: Patch product min_update_id
+    runs-on: ubuntu-22.04
+    steps:
+      - name: PATCH talkytimes min_update_id and list releases
+        env:
+          TALKY_LICENSE_SERVER_URL: ${{ secrets.TALKY_LICENSE_SERVER_URL }}
+          TALKY_LICENSE_ADMIN_TOKEN: ${{ secrets.TALKY_LICENSE_ADMIN_TOKEN }}
+          TALKY_LICENSE_DEPLOY_TOKEN: ${{ secrets.TALKY_LICENSE_DEPLOY_TOKEN }}
+          MIN_UPDATE_ID: ${{ inputs.min_update_id }}
+        run: |
+          set -euo pipefail
+          set +x
+          if [ -z "${TALKY_LICENSE_SERVER_URL:-}" ] || [ -z "${TALKY_LICENSE_ADMIN_TOKEN:-}" ]; then
+            echo "TALKY_LICENSE_SERVER_URL and TALKY_LICENSE_ADMIN_TOKEN are required" >&2
+            exit 1
+          fi
+          if ! [[ "$MIN_UPDATE_ID" =~ ^[0-9]+$ ]]; then
+            echo "min_update_id must be an integer" >&2
+            exit 1
+          fi
+          BASE="${TALKY_LICENSE_SERVER_URL%/}"
+          python3 - <<'PY'
+          import json, os, urllib.request
+          base = os.environ["TALKY_LICENSE_SERVER_URL"].rstrip("/")
+          admin = os.environ["TALKY_LICENSE_ADMIN_TOKEN"]
+          deploy = os.environ.get("TALKY_LICENSE_DEPLOY_TOKEN") or admin
+          min_id = int(os.environ["MIN_UPDATE_ID"])
+
+          def call(method, path, token, body=None):
+              data = None if body is None else json.dumps(body).encode()
+              req = urllib.request.Request(
+                  f"{base}{path}",
+                  data=data,
+                  method=method,
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Accept": "application/json",
+                      "Content-Type": "application/json",
+                      "User-Agent": "TalkyTimes-PD-build/min-update-id",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  return json.loads(resp.read().decode())
+
+          product = call("PATCH", "/api/v1/admin/products/talkytimes", admin, {"min_update_id": min_id})
+          print(json.dumps({
+              "ok": True,
+              "product_id": product.get("product_id"),
+              "min_update_id": product.get("min_update_id"),
+          }))
+          listed = call("GET", "/api/v1/agent/releases?product=talkytimes", deploy)
+          rows = []
+          for item in listed.get("releases") or []:
+              rows.append({
+                  "version": item.get("version"),
+                  "platform": item.get("platform"),
+                  "published": item.get("published"),
+                  "force": item.get("force"),
+                  "has_installer": bool(item.get("url") or item.get("installer_url")),
+                  "has_app": bool(item.get("app_url")),
+              })
+          rows.sort(key=lambda row: (str(row["version"]), str(row["platform"])))
+          print(json.dumps({"releases": rows}, ensure_ascii=False))
+          PY
