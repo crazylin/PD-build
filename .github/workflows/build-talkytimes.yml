@@ -478,8 +478,7 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_DOWNLOAD_BASE: ${{ secrets.R2_DOWNLOAD_BASE }}
           TALKY_LICENSE_SERVER_URL: ${{ secrets.TALKY_LICENSE_SERVER_URL }}
-          TALKY_LICENSE_ADMIN_TOKEN: ${{ secrets.TALKY_LICENSE_ADMIN_TOKEN }}
-          TALKY_LICENSE_DEPLOY_TOKEN: ${{ secrets.TALKY_LICENSE_ADMIN_TOKEN }}
+          TALKY_LICENSE_DEPLOY_TOKEN: ${{ secrets.TALKY_LICENSE_DEPLOY_TOKEN }}
           RELEASE_VERSION: ${{ needs.resolve.outputs.tag }}
           RELEASE_NOTES: TalkyTimes ${{ needs.resolve.outputs.tag }} (built from PD-build)
           PUBLISH_PLATFORMS: all
