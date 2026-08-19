@@ -1,0 +1,414 @@
+name: Build TalkyTimes release
+
+# Clones private crazylin/PD via PAT; no source in this repo.
+on:
+  repository_dispatch:
+    types: [build-release]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Git tag to build (for example v0.1.0)
+        required: true
+        type: string
+        default: v0.1.0
+
+permissions:
+  contents: read
+
+concurrency:
+  group: talkytimes-build-${{ github.event.client_payload.tag || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve build ref
+    runs-on: ubuntu-22.04
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      sha: ${{ steps.meta.outputs.sha }}
+    steps:
+      - name: Resolve tag and version
+        id: meta
+        env:
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          DISPATCH_VERSION: ${{ github.event.client_payload.version }}
+          DISPATCH_REF: ${{ github.event.client_payload.ref }}
+          DISPATCH_SHA: ${{ github.event.client_payload.sha }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            TAG="${DISPATCH_TAG:-${DISPATCH_REF:-}}"
+            VERSION="${DISPATCH_VERSION:-${TAG#v}}"
+            SHA="${DISPATCH_SHA:-}"
+          else
+            TAG="${INPUT_TAG}"
+            VERSION="${TAG#v}"
+            SHA=""
+          fi
+          TAG="${TAG#"${TAG%%[![:space:]]*}"}"
+          TAG="${TAG%"${TAG##*[![:space:]]}"}"
+          if [ -z "$TAG" ] || [[ "$TAG" != v* ]]; then
+            echo "tag must look like v0.1.0 (got: ${TAG:-empty})" >&2
+            exit 1
+          fi
+          VERSION="${VERSION#"${VERSION%%[![:space:]]*}"}"
+          VERSION="${VERSION%"${VERSION##*[![:space:]]}"}"
+          if [ -z "$VERSION" ]; then
+            echo "version could not be derived from tag $TAG" >&2
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "sha=$SHA"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building TalkyTimes tag=$TAG version=$VERSION"
+
+  test:
+    name: Test core and desktop
+    needs: resolve
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clone private PD
+        env:
+          GH_PAT: ${{ secrets.PD_CLONE_PAT }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          set +x
+          if [ -z "${GH_PAT:-}" ]; then
+            echo "PD_CLONE_PAT secret is required" >&2
+            exit 1
+          fi
+          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: |
+            talkytimes-src/core/go.sum
+            talkytimes-src/license-server/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          cache: pnpm
+          cache-dependency-path: talkytimes-src/desktop/pnpm-lock.yaml
+      - name: Test Go Core
+        working-directory: talkytimes-src/core
+        run: go test ./...
+      - name: Test License Server
+        working-directory: talkytimes-src/license-server
+        run: go test ./...
+      - name: Install desktop dependencies
+        working-directory: talkytimes-src/desktop
+        run: pnpm install --frozen-lockfile
+      - name: Test and build desktop UI
+        working-directory: talkytimes-src/desktop
+        run: pnpm test && pnpm typecheck && pnpm build
+      - name: Test publish helpers
+        working-directory: talkytimes-src
+        run: node --test scripts/publish-release-helpers.test.mjs scripts/publish-r2-updates.test.mjs desktop/scripts/release-manifest.test.mjs
+
+  package-win:
+    name: Package Windows x64
+    needs: [resolve, test]
+    runs-on: windows-2022
+    steps:
+      - name: Clone private PD
+        shell: bash
+        env:
+          GH_PAT: ${{ secrets.PD_CLONE_PAT }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          set +x
+          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: talkytimes-src/core/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          cache: pnpm
+          cache-dependency-path: talkytimes-src/desktop/pnpm-lock.yaml
+      - name: Install desktop dependencies
+        working-directory: talkytimes-src/desktop
+        run: pnpm install --frozen-lockfile
+      - name: Build complete Windows installers
+        working-directory: talkytimes-src/desktop
+        run: pnpm dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          ELECTRON_BUILDER_PUBLISH: never
+          TALKY_LICENSE_SERVER_URL: ${{ secrets.TALKY_LICENSE_SERVER_URL }}
+      - name: Verify packaged Core and ASAR
+        working-directory: talkytimes-src/desktop
+        run: pnpm verify:packaged -- release
+      - name: Generate checksums
+        working-directory: talkytimes-src/desktop
+        run: pnpm release:manifest -- release
+      - name: Upload Windows installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: talkytimes-windows-x64
+          path: |
+            talkytimes-src/desktop/release/TalkyTimes-*-win-x64.exe
+            talkytimes-src/desktop/release/*SHA256SUMS.json
+          if-no-files-found: error
+
+  package-legacy-win7:
+    name: Package Windows 7 x64
+    needs: [resolve, test]
+    runs-on: windows-2022
+    steps:
+      - name: Clone private PD
+        shell: bash
+        env:
+          GH_PAT: ${{ secrets.PD_CLONE_PAT }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          set +x
+          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.20.14"
+          cache-dependency-path: talkytimes-src/core/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: pnpm
+          cache-dependency-path: |
+            talkytimes-src/desktop/pnpm-lock.yaml
+            talkytimes-src/desktop-legacy/pnpm-lock.yaml
+      - name: Install modern UI toolchain
+        working-directory: talkytimes-src/desktop
+        run: pnpm install --frozen-lockfile
+      - name: Install isolated Windows 7 toolchain
+        working-directory: talkytimes-src/desktop-legacy
+        run: pnpm install --frozen-lockfile
+      - name: Build Windows 7 installers
+        working-directory: talkytimes-src/desktop-legacy
+        run: pnpm dist:win7
+        env:
+          TALKY_LEGACY_GO_TOOLCHAIN: local
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          ELECTRON_BUILDER_PUBLISH: never
+          TALKY_LICENSE_SERVER_URL: ${{ secrets.TALKY_LICENSE_SERVER_URL }}
+      - name: Verify packaged Core and ASAR
+        working-directory: talkytimes-src/desktop-legacy
+        run: pnpm verify:package
+      - name: Generate checksums
+        working-directory: talkytimes-src/desktop
+        run: pnpm release:manifest -- ../desktop-legacy/release
+      - name: Upload Windows 7 installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: talkytimes-windows-7
+          path: |
+            talkytimes-src/desktop-legacy/release/TalkyTimes-*-win7-x64.exe
+            talkytimes-src/desktop-legacy/release/*SHA256SUMS.json
+          if-no-files-found: error
+
+  package-mac:
+    name: Package macOS x64 and arm64
+    needs: [resolve, test]
+    runs-on: macos-14
+    steps:
+      - name: Clone private PD
+        env:
+          GH_PAT: ${{ secrets.PD_CLONE_PAT }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          set +x
+          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: talkytimes-src/core/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          cache: pnpm
+          cache-dependency-path: talkytimes-src/desktop/pnpm-lock.yaml
+      - name: Install desktop dependencies
+        working-directory: talkytimes-src/desktop
+        run: pnpm install --frozen-lockfile
+      - name: Build complete macOS installers
+        working-directory: talkytimes-src/desktop
+        run: pnpm dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          ELECTRON_BUILDER_PUBLISH: never
+          TALKY_LICENSE_SERVER_URL: ${{ secrets.TALKY_LICENSE_SERVER_URL }}
+      - name: Verify packaged Core and ASAR
+        working-directory: talkytimes-src/desktop
+        run: pnpm verify:packaged -- release
+      - name: Generate checksums
+        working-directory: talkytimes-src/desktop
+        run: pnpm release:manifest -- release
+      - name: Upload macOS installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: talkytimes-macos
+          path: |
+            talkytimes-src/desktop/release/TalkyTimes-*-mac-*.dmg
+            talkytimes-src/desktop/release/*SHA256SUMS.json
+          if-no-files-found: error
+
+  package-linux:
+    name: Package Linux x64
+    needs: [resolve, test]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clone private PD
+        env:
+          GH_PAT: ${{ secrets.PD_CLONE_PAT }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          set +x
+          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: talkytimes-src/core/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          cache: pnpm
+          cache-dependency-path: talkytimes-src/desktop/pnpm-lock.yaml
+      - name: Install desktop dependencies
+        working-directory: talkytimes-src/desktop
+        run: pnpm install --frozen-lockfile
+      - name: Build complete Linux installers
+        working-directory: talkytimes-src/desktop
+        run: pnpm dist:linux
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          ELECTRON_BUILDER_PUBLISH: never
+          TALKY_LICENSE_SERVER_URL: ${{ secrets.TALKY_LICENSE_SERVER_URL }}
+      - name: Verify packaged Core and ASAR
+        working-directory: talkytimes-src/desktop
+        run: pnpm verify:packaged -- release
+      - name: Normalize Linux AppImage filename
+        working-directory: talkytimes-src/desktop/release
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in TalkyTimes-*-linux-x86_64.AppImage; do
+            mv "$f" "${f/linux-x86_64/linux-x64}"
+          done
+          ls -la
+      - name: Generate checksums
+        working-directory: talkytimes-src/desktop
+        run: pnpm release:manifest -- release
+      - name: Upload Linux installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: talkytimes-linux-x64
+          path: |
+            talkytimes-src/desktop/release/TalkyTimes-*-linux-x64.AppImage
+            talkytimes-src/desktop/release/*SHA256SUMS.json
+          if-no-files-found: error
+
+  publish-r2:
+    name: Publish installers to R2
+    needs:
+      - resolve
+      - package-win
+      - package-legacy-win7
+      - package-mac
+      - package-linux
+    if: >-
+      !cancelled()
+      && (
+        needs.package-win.result == 'success'
+        || needs.package-legacy-win7.result == 'success'
+        || needs.package-mac.result == 'success'
+        || needs.package-linux.result == 'success'
+      )
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clone private PD (publish scripts)
+        env:
+          GH_PAT: ${{ secrets.PD_CLONE_PAT }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          set +x
+          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Stage release directory
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          RELEASE_DIR="$RUNNER_TEMP/talkytimes-release"
+          mkdir -p "$RELEASE_DIR"
+          shopt -s nullglob
+          for f in artifacts/*; do
+            [[ -f "$f" ]] || continue
+            base="$(basename "$f")"
+            case "$base" in
+              TalkyTimes-*-win-x64.exe|TalkyTimes-*-win7-x64.exe|TalkyTimes-*-mac-*.dmg|TalkyTimes-*-linux-x64.AppImage|*SHA256SUMS.json) ;;
+              *) continue ;;
+            esac
+            case "$base" in
+              *portable*|*.zip|*.tar.gz|*.blockmap) continue ;;
+            esac
+            cp "$f" "$RELEASE_DIR/$base"
+          done
+          count="$(find "$RELEASE_DIR" -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          if [ "$count" -eq 0 ]; then
+            echo "No installer artifacts found to publish" >&2
+            ls -la artifacts >&2 || true
+            exit 1
+          fi
+          ls -la "$RELEASE_DIR"
+          echo "RELEASE_DIR=$RELEASE_DIR" >> "$GITHUB_ENV"
+      - name: Upload installers to R2 and sync license server
+        working-directory: talkytimes-src
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_DOWNLOAD_BASE: ${{ secrets.R2_DOWNLOAD_BASE }}
+          TALKY_LICENSE_SERVER_URL: ${{ secrets.TALKY_LICENSE_SERVER_URL }}
+          TALKY_LICENSE_ADMIN_TOKEN: ${{ secrets.TALKY_LICENSE_ADMIN_TOKEN }}
+          TALKY_LICENSE_DEPLOY_TOKEN: ${{ secrets.TALKY_LICENSE_DEPLOY_TOKEN }}
+          RELEASE_DIR: ${{ env.RELEASE_DIR }}
+          RELEASE_VERSION: ${{ needs.resolve.outputs.tag }}
+          RELEASE_NOTES: TalkyTimes ${{ needs.resolve.outputs.tag }} (built from PD-build)
+          PUBLISH_PLATFORMS: all
+        run: |
+          set -euo pipefail
+          set +x
+          node scripts/publish-r2-updates.mjs
