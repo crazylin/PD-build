@@ -400,6 +400,9 @@ jobs:
       )
     runs-on: ubuntu-22.04
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PD_CLONE_SSH_KEY }}
       - name: Clone private PD (publish scripts)
         run: |
           set -euo pipefail
