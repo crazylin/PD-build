@@ -10,7 +10,7 @@ on:
         description: Git tag to build (for example v0.1.0)
         required: true
         type: string
-        default: v0.1.0
+        default: v0.1.2
 
 permissions:
   contents: read
