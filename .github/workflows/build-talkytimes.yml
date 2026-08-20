@@ -485,11 +485,15 @@ jobs:
           TALKY_LICENSE_SERVER_URL: ${{ secrets.TALKY_LICENSE_SERVER_URL }}
           TALKY_LICENSE_DEPLOY_TOKEN: ${{ secrets.TALKY_LICENSE_DEPLOY_TOKEN }}
           RELEASE_VERSION: ${{ needs.resolve.outputs.tag }}
-          RELEASE_NOTES: TalkyTimes ${{ needs.resolve.outputs.tag }} (built from PD-build)
           PUBLISH_PLATFORMS: all
         run: |
           set -euo pipefail
           RELEASE_DIR="${{ runner.temp }}/talkytimes-release"
           export RELEASE_DIR
           set +x
+          if [ ! -s core/internal/api/release-notes.txt ]; then
+            echo "core/internal/api/release-notes.txt must list this version's user-visible changes" >&2
+            exit 1
+          fi
+          export RELEASE_NOTES="$(tr -d '\r' < core/internal/api/release-notes.txt)"
           node scripts/publish-r2-updates.mjs
