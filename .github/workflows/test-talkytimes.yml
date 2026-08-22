@@ -1,0 +1,134 @@
+name: Test TalkyTimes
+# Tests only: clones private crazylin/PD at any branch, tag or SHA and runs the
+# same checks as the release pipeline, without packaging installers, creating a
+# GitHub Release or uploading to R2. Use this to validate a branch when the private
+# repo has no Actions budget left.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or SHA in crazylin/PD to test (for example license-console-rework)
+        required: true
+        type: string
+        default: main
+      desktop:
+        description: Also test, typecheck and build the desktop UI (slower)
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: talkytimes-test-${{ inputs.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test ${{ inputs.ref }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PD_CLONE_SSH_KEY }}
+      # A SHA cannot be cloned with --branch, so fetch it explicitly when needed.
+      - name: Clone private PD at ref
+        env:
+          GH_PAT: ${{ secrets.PD_CLONE_PAT }}
+          REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          set +x
+          if ssh-add -l >/dev/null 2>&1; then
+            REMOTE='git@github.com:crazylin/PD.git'
+            export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes'
+          elif [ -n "${GH_PAT:-}" ]; then
+            REMOTE="https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git"
+          else
+            echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
+            exit 1
+          fi
+          if git clone --depth 1 --branch "$REF" "$REMOTE" talkytimes-src 2>/dev/null; then
+            echo "cloned branch or tag $REF"
+          else
+            git init talkytimes-src
+            git -C talkytimes-src remote add origin "$REMOTE"
+            git -C talkytimes-src fetch --depth 1 origin "$REF"
+            git -C talkytimes-src checkout FETCH_HEAD
+            echo "checked out SHA $REF"
+          fi
+          echo "HEAD: $(git -C talkytimes-src rev-parse HEAD)"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: |
+            talkytimes-src/core/go.sum
+            talkytimes-src/license-server/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          cache: pnpm
+          cache-dependency-path: |
+            talkytimes-src/desktop/pnpm-lock.yaml
+            talkytimes-src/license-server/webapp/pnpm-lock.yaml
+
+      - name: Test Go Core
+        working-directory: talkytimes-src/core
+        run: go test ./...
+
+      # Proves go:embed really depends on the built console: without the bundle the
+      # license-server tests must fail, so a silently stale embed cannot pass CI.
+      - name: Check the console bundle is a real build dependency
+        working-directory: talkytimes-src/license-server
+        run: |
+          set -euo pipefail
+          if go test ./internal/api -run TestEmbeddedRegistrationAndAdminWeb >/dev/null 2>&1; then
+            echo "expected the embedded page test to fail before make console" >&2
+            exit 1
+          fi
+          echo "confirmed: /admin needs the Vite build"
+
+      - name: Build License Server admin console
+        working-directory: talkytimes-src/license-server
+        run: make console
+      - name: Test License Server admin console
+        working-directory: talkytimes-src/license-server
+        run: make test-console
+      - name: Test License Server
+        working-directory: talkytimes-src/license-server
+        run: go test ./...
+      - name: Test License Server with race detector
+        working-directory: talkytimes-src/license-server
+        run: go test -race ./internal/api ./internal/auth
+      - name: Build License Server for linux/amd64
+        working-directory: talkytimes-src/license-server
+        run: ./scripts/build.sh linux/amd64
+
+      - name: Install desktop dependencies
+        if: ${{ inputs.desktop }}
+        working-directory: talkytimes-src/desktop
+        run: pnpm install --frozen-lockfile
+      - name: Test and build desktop UI
+        if: ${{ inputs.desktop }}
+        working-directory: talkytimes-src/desktop
+        run: pnpm test && pnpm typecheck && pnpm build
+      - name: Test publish helpers
+        if: ${{ inputs.desktop }}
+        working-directory: talkytimes-src
+        run: node --test scripts/publish-release-helpers.test.mjs scripts/publish-r2-updates.test.mjs desktop/scripts/release-manifest.test.mjs
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### TalkyTimes 测试结果"
+            echo ""
+            echo "- ref: \`${{ inputs.ref }}\`"
+            echo "- 包含桌面端: ${{ inputs.desktop }}"
+            echo "- 未打包安装器、未创建 Release、未上传 R2"
+          } >> "$GITHUB_STEP_SUMMARY"
