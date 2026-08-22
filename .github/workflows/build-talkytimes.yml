@@ -103,10 +103,19 @@ jobs:
         with:
           node-version: "24.x"
           cache: pnpm
-          cache-dependency-path: talkytimes-src/desktop/pnpm-lock.yaml
+          cache-dependency-path: |
+            talkytimes-src/desktop/pnpm-lock.yaml
+            talkytimes-src/license-server/webapp/pnpm-lock.yaml
       - name: Test Go Core
         working-directory: talkytimes-src/core
         run: go test ./...
+      # The console bundle is embedded by go:embed, so it must be built first.
+      - name: Build License Server admin console
+        working-directory: talkytimes-src/license-server
+        run: make console
+      - name: Test License Server admin console
+        working-directory: talkytimes-src/license-server
+        run: make test-console
       - name: Test License Server
         working-directory: talkytimes-src/license-server
         run: go test ./...
