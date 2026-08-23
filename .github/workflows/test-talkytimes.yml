@@ -64,8 +64,8 @@ jobs:
         with:
           go-version: "1.24.x"
           cache-dependency-path: |
-            talkytimes-src/TalkyTimes/core/go.sum
-            talkytimes-src/TalkyTimes/license-server/go.sum
+            talkytimes-src/core/go.sum
+            talkytimes-src/license-server/go.sum
       - uses: pnpm/action-setup@v4
         with:
           version: 10.34.5
@@ -74,17 +74,17 @@ jobs:
           node-version: "24.x"
           cache: pnpm
           cache-dependency-path: |
-            talkytimes-src/TalkyTimes/desktop/pnpm-lock.yaml
-            talkytimes-src/TalkyTimes/license-server/webapp/pnpm-lock.yaml
+            talkytimes-src/desktop/pnpm-lock.yaml
+            talkytimes-src/license-server/webapp/pnpm-lock.yaml
 
       - name: Test Go Core
-        working-directory: talkytimes-src/TalkyTimes/core
+        working-directory: talkytimes-src/core
         run: go test ./...
 
       # Proves go:embed really depends on the built console: without the bundle the
       # license-server tests must fail, so a silently stale embed cannot pass CI.
       - name: Check the console bundle is a real build dependency
-        working-directory: talkytimes-src/TalkyTimes/license-server
+        working-directory: talkytimes-src/license-server
         run: |
           set -euo pipefail
           if go test ./internal/api -run TestEmbeddedRegistrationAndAdminWeb >/dev/null 2>&1; then
@@ -94,32 +94,32 @@ jobs:
           echo "confirmed: /admin needs the Vite build"
 
       - name: Build License Server admin console
-        working-directory: talkytimes-src/TalkyTimes/license-server
+        working-directory: talkytimes-src/license-server
         run: make console
       - name: Test License Server admin console
-        working-directory: talkytimes-src/TalkyTimes/license-server
+        working-directory: talkytimes-src/license-server
         run: make test-console
       - name: Test License Server
-        working-directory: talkytimes-src/TalkyTimes/license-server
+        working-directory: talkytimes-src/license-server
         run: go test ./...
       - name: Test License Server with race detector
-        working-directory: talkytimes-src/TalkyTimes/license-server
+        working-directory: talkytimes-src/license-server
         run: go test -race ./internal/api ./internal/auth
       - name: Build License Server for linux/amd64
-        working-directory: talkytimes-src/TalkyTimes/license-server
+        working-directory: talkytimes-src/license-server
         run: ./scripts/build.sh linux/amd64
 
       - name: Install desktop dependencies
         if: ${{ inputs.desktop }}
-        working-directory: talkytimes-src/TalkyTimes/desktop
+        working-directory: talkytimes-src/desktop
         run: pnpm install --frozen-lockfile
       - name: Test and build desktop UI
         if: ${{ inputs.desktop }}
-        working-directory: talkytimes-src/TalkyTimes/desktop
+        working-directory: talkytimes-src/desktop
         run: pnpm test && pnpm typecheck && pnpm build
       - name: Test publish helpers
         if: ${{ inputs.desktop }}
-        working-directory: talkytimes-src/TalkyTimes
+        working-directory: talkytimes-src
         run: node --test scripts/publish-release-helpers.test.mjs scripts/publish-r2-updates.test.mjs desktop/scripts/release-manifest.test.mjs
 
       - name: Summary
