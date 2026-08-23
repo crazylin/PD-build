@@ -1,6 +1,6 @@
 name: Build TalkyTimes release
 
-# Clones private crazylin/PD via deploy key (or PAT fallback); no source in this repo.
+# Clones private crazylin/TalkyTimes via deploy key (or PAT fallback); no source in this repo.
 on:
   repository_dispatch:
     types: [build-release]
@@ -83,9 +83,9 @@ jobs:
           set +x
           if ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/PD.git talkytimes-src
+              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
@@ -95,7 +95,6 @@ jobs:
           go-version: "1.24.x"
           cache-dependency-path: |
             talkytimes-src/core/go.sum
-            talkytimes-src/license-server/go.sum
       - uses: pnpm/action-setup@v4
         with:
           version: 10.34.5
@@ -103,22 +102,12 @@ jobs:
         with:
           node-version: "24.x"
           cache: pnpm
-          cache-dependency-path: talkytimes-src/desktop/pnpm-lock.yaml
-      - name: Test Go Core
-        working-directory: talkytimes-src/core
-        run: go test ./...
-      - name: Test License Server
-        working-directory: talkytimes-src/license-server
-        run: go test ./...
-      - name: Install desktop dependencies
-        working-directory: talkytimes-src/desktop
-        run: pnpm install --frozen-lockfile
-      - name: Test and build desktop UI
-        working-directory: talkytimes-src/desktop
-        run: pnpm test && pnpm typecheck && pnpm build
-      - name: Test publish helpers
+          cache-dependency-path: |
+            talkytimes-src/desktop/pnpm-lock.yaml
+      # 检查步骤由源码仓的 scripts/ci-test.sh 定义，避免两个仓库互相同步。
+      - name: Run repository CI checks
         working-directory: talkytimes-src
-        run: node --test scripts/publish-release-helpers.test.mjs scripts/publish-r2-updates.test.mjs desktop/scripts/release-manifest.test.mjs
+        run: ./scripts/ci-test.sh
 
   package-win:
     name: Package Windows x64
@@ -138,9 +127,9 @@ jobs:
           set +x
           if ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/PD.git talkytimes-src
+              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
@@ -204,9 +193,9 @@ jobs:
           set +x
           if ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/PD.git talkytimes-src
+              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
@@ -275,9 +264,9 @@ jobs:
           set +x
           if ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/PD.git talkytimes-src
+              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
@@ -345,9 +334,9 @@ jobs:
           set +x
           if ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/PD.git talkytimes-src
+              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
@@ -432,9 +421,9 @@ jobs:
           set +x
           if ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch main git@github.com:crazylin/PD.git talkytimes-src
+              git clone --depth 1 --branch main git@github.com:crazylin/TalkyTimes.git talkytimes-src
           elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch main "https://x-access-token:${GH_PAT}@github.com/crazylin/PD.git" talkytimes-src
+            git clone --depth 1 --branch main "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
