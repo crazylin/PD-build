@@ -95,7 +95,6 @@ jobs:
           go-version: "1.24.x"
           cache-dependency-path: |
             talkytimes-src/core/go.sum
-            talkytimes-src/license-server/go.sum
       - uses: pnpm/action-setup@v4
         with:
           version: 10.34.5
@@ -105,7 +104,6 @@ jobs:
           cache: pnpm
           cache-dependency-path: |
             talkytimes-src/desktop/pnpm-lock.yaml
-            talkytimes-src/license-server/webapp/pnpm-lock.yaml
       # 检查步骤由源码仓的 scripts/ci-test.sh 定义，避免两个仓库互相同步。
       - name: Run repository CI checks
         working-directory: talkytimes-src
