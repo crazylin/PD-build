@@ -52,7 +52,7 @@ jobs:
                       "Authorization": f"Bearer {token}",
                       "Accept": "application/json",
                       "Content-Type": "application/json",
-                      "User-Agent": "TalkyTimes-PD-build/min-update-id",
+                      "User-Agent": "TalkyTimes-TalkyTimes-build/min-update-id",
                   },
               )
               with urllib.request.urlopen(req, timeout=30) as resp:
