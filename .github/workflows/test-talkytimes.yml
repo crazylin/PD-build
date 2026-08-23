@@ -63,9 +63,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24.x"
-          cache-dependency-path: |
-            talkytimes-src/core/go.sum
-            talkytimes-src/license-server/go.sum
+          cache-dependency-path: talkytimes-src/core/go.sum
       - uses: pnpm/action-setup@v4
         with:
           version: 10.34.5
@@ -73,54 +71,20 @@ jobs:
         with:
           node-version: "24.x"
           cache: pnpm
-          cache-dependency-path: |
-            talkytimes-src/desktop/pnpm-lock.yaml
-            talkytimes-src/license-server/webapp/pnpm-lock.yaml
+          cache-dependency-path: talkytimes-src/desktop/pnpm-lock.yaml
 
-      - name: Test Go Core
-        working-directory: talkytimes-src/core
-        run: go test ./...
-
-      # Proves go:embed really depends on the built console: without the bundle the
-      # license-server tests must fail, so a silently stale embed cannot pass CI.
-      - name: Check the console bundle is a real build dependency
-        working-directory: talkytimes-src/license-server
-        run: |
-          set -euo pipefail
-          if go test ./internal/api -run TestEmbeddedRegistrationAndAdminWeb >/dev/null 2>&1; then
-            echo "expected the embedded page test to fail before make console" >&2
-            exit 1
-          fi
-          echo "confirmed: /admin needs the Vite build"
-
-      - name: Build License Server admin console
-        working-directory: talkytimes-src/license-server
-        run: make console
-      - name: Test License Server admin console
-        working-directory: talkytimes-src/license-server
-        run: make test-console
-      - name: Test License Server
-        working-directory: talkytimes-src/license-server
-        run: go test ./...
-      - name: Test License Server with race detector
-        working-directory: talkytimes-src/license-server
-        run: go test -race ./internal/api ./internal/auth
-      - name: Build License Server for linux/amd64
-        working-directory: talkytimes-src/license-server
-        run: ./scripts/build.sh linux/amd64
-
-      - name: Install desktop dependencies
-        if: ${{ inputs.desktop }}
-        working-directory: talkytimes-src/desktop
-        run: pnpm install --frozen-lockfile
-      - name: Test and build desktop UI
-        if: ${{ inputs.desktop }}
-        working-directory: talkytimes-src/desktop
-        run: pnpm test && pnpm typecheck && pnpm build
-      - name: Test publish helpers
-        if: ${{ inputs.desktop }}
+      # 检查步骤由源码仓的 scripts/ci-test.sh 定义，这里只负责调用，
+      # 所以以后增删检查不需要改本仓库的工作流。
+      - name: Run repository CI checks
         working-directory: talkytimes-src
-        run: node --test scripts/publish-release-helpers.test.mjs scripts/publish-r2-updates.test.mjs desktop/scripts/release-manifest.test.mjs
+        env:
+          WITH_DESKTOP: ${{ inputs.desktop }}
+        run: |
+          if [ "$WITH_DESKTOP" = "true" ]; then
+            ./scripts/ci-test.sh
+          else
+            ./scripts/ci-test.sh --no-desktop
+          fi
 
       - name: Summary
         if: always()
