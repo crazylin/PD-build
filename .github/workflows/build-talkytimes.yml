@@ -81,11 +81,11 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          if ssh-add -l >/dev/null 2>&1; then
+          if [ -n "${GH_PAT:-}" ]; then
+            git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+          elif ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
-          elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+              git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
@@ -125,11 +125,11 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          if ssh-add -l >/dev/null 2>&1; then
+          if [ -n "${GH_PAT:-}" ]; then
+            git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+          elif ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
-          elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+              git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
@@ -191,11 +191,11 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          if ssh-add -l >/dev/null 2>&1; then
+          if [ -n "${GH_PAT:-}" ]; then
+            git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+          elif ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
-          elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+              git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
@@ -262,11 +262,11 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          if ssh-add -l >/dev/null 2>&1; then
+          if [ -n "${GH_PAT:-}" ]; then
+            git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+          elif ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
-          elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+              git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
@@ -332,11 +332,11 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          if ssh-add -l >/dev/null 2>&1; then
+          if [ -n "${GH_PAT:-}" ]; then
+            git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+          elif ssh-add -l >/dev/null 2>&1; then
             GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes' \
-              git clone --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
-          elif [ -n "${GH_PAT:-}" ]; then
-            git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_PAT}@github.com/crazylin/TalkyTimes.git" talkytimes-src
+              git clone --recurse-submodules --shallow-submodules --depth 1 --branch "$TAG" git@github.com:crazylin/TalkyTimes.git talkytimes-src
           else
             echo "PD_CLONE_SSH_KEY or PD_CLONE_PAT secret is required" >&2
             exit 1
